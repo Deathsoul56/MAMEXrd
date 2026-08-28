@@ -1,0 +1,60 @@
+# Entorno y MAME de prueba local
+MAME 0.289
+MAME 0.289+GUI
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging / build outputs
+build/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.spec
+
+# PyInstaller / Nuitka outputs
+*.manifest
+*.spec
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# SQLite Database local cache
+*.db
+mame_cache.db
+
+# IDE & OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Temporary scratch & test files
+scratch/
+prod_list.txt

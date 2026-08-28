@@ -1,0 +1,8 @@
+# Framework GUI principal
+PyQt6>=6.6.0
+
+# Procesamiento de imágenes (opcional/complementario)
+Pillow>=10.0.0
+
+# Compilador portable a ejecutable .exe (para producción)
+nuitka>=2.0.0
