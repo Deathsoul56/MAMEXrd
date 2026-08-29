@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
-    QPushButton, QLabel, QHeaderView, QMessageBox, QToolBar, QMenu, QStatusBar
+    QPushButton, QLabel, QHeaderView, QMessageBox, QToolBar, QMenu, QStatusBar,
+    QInputDialog
 )
 from PyQt6.QtCore import Qt, QItemSelection
 from PyQt6.QtGui import QAction, QIcon
@@ -15,8 +16,10 @@ from ui.folder_dock import FolderListDock
 from ui.media_dock import MediaDockWidget, InfoDockWidget
 from ui.first_boot_dialog import FirstBootDialog
 from ui.settings_dialog import MAMESettingsDialog
+from ui.game_settings_dialog import GameSettingsDialog
 from ui.styles import DARK_THEME_QSS
 from utils.path_helper import PathHelper
+from utils.config_manager import ConfigManager
 
 class MainWindow(QMainWindow):
     """
@@ -34,6 +37,9 @@ class MainWindow(QMainWindow):
         self.mame_runner = MAMERunner(self)
         self.selected_rom: str = ""
         self.all_games = []
+        self.current_filter_type = "all"
+        self.current_filter_value = ""
+        self.config_manager = ConfigManager()
 
         # Comprobar Primer Inicio si mame.exe no está configurado
         self._check_first_boot()
@@ -45,7 +51,31 @@ class MainWindow(QMainWindow):
         self._init_statusbar()
         self._connect_signals()
 
+        self._restore_window_state()
         self._load_games()
+        self._restore_last_category()
+
+    def _restore_window_state(self):
+        """Restaura posición, tamaño y layout de docks guardados del último cierre."""
+        geometry = self.config_manager.get_window_geometry()
+        if geometry:
+            self.restoreGeometry(geometry)
+
+        state = self.config_manager.get_window_state()
+        if state:
+            self.restoreState(state)
+
+    def _restore_last_category(self):
+        """Reabre la app en la misma categoría del Folder List (ej. Favoritos) donde se cerró."""
+        filter_type, filter_value = self.config_manager.get_last_category()
+        if filter_type and filter_type != "all":
+            self.folder_dock.select_category(filter_type, filter_value)
+
+    def closeEvent(self, event):
+        """Guarda posición, tamaño y layout de docks antes de cerrar la ventana."""
+        self.config_manager.set_window_geometry(bytes(self.saveGeometry()))
+        self.config_manager.set_window_state(bytes(self.saveState()))
+        super().closeEvent(event)
 
     def _check_first_boot(self):
         mame_exe = PathHelper.get_mame_executable()
@@ -100,6 +130,7 @@ class MainWindow(QMainWindow):
 
     def _init_toolbar(self):
         toolbar = QToolBar("Main Toolbar")
+        toolbar.setObjectName("MainToolbar")
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
 
@@ -152,6 +183,7 @@ class MainWindow(QMainWindow):
         self.table_view.setSelectionBehavior(GameTableView.SelectionBehavior.SelectRows)
         self.table_view.setSelectionMode(GameTableView.SelectionMode.SingleSelection)
         self.table_view.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.table_view.custom_folders_provider = self.db_manager.get_custom_folders
 
         self.setCentralWidget(self.table_view)
 
@@ -177,6 +209,9 @@ class MainWindow(QMainWindow):
         self.table_view.favorite_toggled.connect(self._on_toggle_favorite)
         self.table_view.audit_requested.connect(self._on_audit_single_game)
         self.table_view.properties_requested.connect(self._on_show_properties)
+        self.table_view.add_to_folder_requested.connect(self._on_add_to_folder)
+        self.table_view.new_folder_requested.connect(self._on_new_folder_requested)
+        self.table_view.video_settings_requested.connect(self._on_open_game_video_settings)
 
         self.mame_runner.started.connect(self._on_mame_started)
         self.mame_runner.finished.connect(self._on_mame_finished)
@@ -184,8 +219,7 @@ class MainWindow(QMainWindow):
 
     def _load_games(self):
         self.all_games = self.db_manager.get_all_games()
-        self.table_model.set_games(self.all_games)
-        self.status_count_lbl.setText(f"{len(self.all_games)} juegos cargados")
+        self._apply_filter(self.current_filter_type, self.current_filter_value)
 
     def _on_game_selected(self, selected: QItemSelection, deselected: QItemSelection):
         indexes = selected.indexes()
@@ -201,39 +235,53 @@ class MainWindow(QMainWindow):
                 self.status_game_lbl.setText(f"{title} ({self.selected_rom})")
 
     def _on_search_changed(self, text: str):
+        base_games = self._get_category_games(self.current_filter_type, self.current_filter_value)
         if not text.strip():
-            self.table_model.set_games(self.all_games)
-            self.status_count_lbl.setText(f"{len(self.all_games)} juegos cargados")
+            self.table_model.set_games(base_games)
+            self.status_count_lbl.setText(f"{len(base_games)} juegos en '{self.current_filter_value or self.current_filter_type}'")
             return
 
         query = text.lower()
         filtered = [
-            g for g in self.all_games
+            g for g in base_games
             if query in g.get("rom_name", "").lower() or query in g.get("title", "").lower()
         ]
         self.table_model.set_games(filtered)
         self.status_count_lbl.setText(f"{len(filtered)} juegos encontrados")
 
     def _on_category_filtered(self, filter_type: str, filter_value: str):
+        self.current_filter_type = filter_type
+        self.current_filter_value = filter_value
+        self._apply_filter(filter_type, filter_value)
+        self.config_manager.set_last_category(filter_type, filter_value)
+
+    def _get_category_games(self, filter_type: str, filter_value: str) -> list:
+        """Devuelve la lista de juegos de una categoría del Folder List, sin tocar la tabla ni el estado persistido."""
         if filter_type == "all":
-            filtered = self.all_games
+            return self.all_games
         elif filter_type == "available":
             val = int(filter_value)
-            filtered = [g for g in self.all_games if g.get("has_rom") == val]
+            return [g for g in self.all_games if g.get("has_rom") == val]
         elif filter_type == "favorite":
-            filtered = [g for g in self.all_games if g.get("is_favorite") == 1]
+            return [g for g in self.all_games if g.get("is_favorite") == 1]
         elif filter_type == "manufacturer":
-            filtered = [g for g in self.all_games if filter_value.lower() in g.get("manufacturer", "").lower()]
+            return [g for g in self.all_games if filter_value.lower() in g.get("manufacturer", "").lower()]
         elif filter_type == "year":
-            filtered = [g for g in self.all_games if g.get("year") == filter_value]
+            return [g for g in self.all_games if g.get("year") == filter_value]
         elif filter_type == "status":
-            filtered = [g for g in self.all_games if g.get("driver_status") == filter_value]
+            return [g for g in self.all_games if g.get("driver_status") == filter_value]
         elif filter_type == "clone":
             val = int(filter_value)
-            filtered = [g for g in self.all_games if g.get("is_clone") == val]
+            return [g for g in self.all_games if g.get("is_clone") == val]
+        elif filter_type == "custom_folder":
+            roms_in_folder = set(self.db_manager.get_roms_in_folder(filter_value))
+            return [g for g in self.all_games if g.get("rom_name") in roms_in_folder]
         else:
-            filtered = self.all_games
+            return self.all_games
 
+    def _apply_filter(self, filter_type: str, filter_value: str):
+        """Filtra la tabla sin tocar la última categoría persistida (usado por _load_games para no pisar el estado guardado)."""
+        filtered = self._get_category_games(filter_type, filter_value)
         self.table_model.set_games(filtered)
         self.status_count_lbl.setText(f"{len(filtered)} juegos en '{filter_value or filter_type}'")
 
@@ -243,6 +291,21 @@ class MainWindow(QMainWindow):
         self.folder_dock.reload_tree()
         msg = f"'{rom_name}' agregado a Favoritos" if new_favorite_state else f"'{rom_name}' removido de Favoritos"
         self.statusbar.showMessage(msg, 3000)
+
+    def _on_add_to_folder(self, rom_name: str, folder_name: str):
+        self.db_manager.add_rom_to_folder(folder_name, rom_name)
+        self.folder_dock.reload_tree()
+        self.statusbar.showMessage(f"'{rom_name}' agregado a '{folder_name}'", 3000)
+
+    def _on_new_folder_requested(self, rom_name: str):
+        name, ok = QInputDialog.getText(self, "Nueva Carpeta", "Nombre de la carpeta:")
+        if not ok or not name.strip():
+            return
+        folder_name = name.strip()
+        if not self.db_manager.create_custom_folder(folder_name):
+            QMessageBox.warning(self, "Nueva Carpeta", "Nombre de carpeta inválido.")
+            return
+        self._on_add_to_folder(rom_name, folder_name)
 
     def _on_record_game(self, rom_name: str):
         self.selected_rom = rom_name
@@ -311,10 +374,20 @@ class MainWindow(QMainWindow):
         self.mame_runner.launch_game(self.selected_rom)
 
     def _on_mame_started(self):
+        # Se guarda el estado antes de minimizar porque showNormal() no lo restaura solo
+        # (perdería el estado maximizado y volvería siempre a tamaño "normal").
+        self._pre_launch_maximized = self.isMaximized()
+        self._pre_launch_geometry = bytes(self.saveGeometry())
         self.showMinimized()
 
     def _on_mame_finished(self, exit_code: int):
-        self.showNormal()
+        if getattr(self, "_pre_launch_maximized", False):
+            self.showMaximized()
+        else:
+            self.showNormal()
+            geometry = getattr(self, "_pre_launch_geometry", None)
+            if geometry:
+                self.restoreGeometry(geometry)
 
     def _on_mame_error(self, err_msg: str):
         QMessageBox.warning(self, "Error MAME", err_msg)
@@ -324,4 +397,8 @@ class MainWindow(QMainWindow):
 
     def _on_open_core_settings(self):
         dialog = MAMESettingsDialog(self)
+        dialog.exec()
+
+    def _on_open_game_video_settings(self, rom_name: str):
+        dialog = GameSettingsDialog(rom_name, self)
         dialog.exec()

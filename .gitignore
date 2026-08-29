@@ -58,3 +58,10 @@ Desktop.ini
 # Temporary scratch & test files
 scratch/
 prod_list.txt
+
+# User/session-specific local config (generated at runtime, not part of the app)
+mamexrd.ini
+folders/
+
+Legacy
+docs

@@ -1,6 +1,7 @@
 import configparser
+import base64
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 from utils.path_helper import PathHelper
 
 class ConfigManager:
@@ -46,4 +47,52 @@ class ConfigManager:
     def set_mame_path(self, path: Path):
         """Establece y guarda la ruta de mame.exe."""
         self.config["General"]["mame_binary"] = str(path)
+        self.save_config()
+
+    def get_window_geometry(self) -> Optional[bytes]:
+        """Obtiene la geometría (posición/tamaño) guardada de la ventana principal."""
+        raw = self.config.get("Window", "geometry", fallback="")
+        if raw:
+            try:
+                return base64.b64decode(raw)
+            except Exception:
+                return None
+        return None
+
+    def set_window_geometry(self, data: bytes):
+        """Guarda la geometría (posición/tamaño) de la ventana principal."""
+        if "Window" not in self.config:
+            self.config["Window"] = {}
+        self.config["Window"]["geometry"] = base64.b64encode(data).decode("ascii")
+        self.save_config()
+
+    def get_window_state(self) -> Optional[bytes]:
+        """Obtiene el estado guardado de docks/toolbars de la ventana principal."""
+        raw = self.config.get("Window", "state", fallback="")
+        if raw:
+            try:
+                return base64.b64decode(raw)
+            except Exception:
+                return None
+        return None
+
+    def set_window_state(self, data: bytes):
+        """Guarda el estado de docks/toolbars de la ventana principal."""
+        if "Window" not in self.config:
+            self.config["Window"] = {}
+        self.config["Window"]["state"] = base64.b64encode(data).decode("ascii")
+        self.save_config()
+
+    def get_last_category(self) -> Tuple[str, str]:
+        """Obtiene la última categoría del Folder List seleccionada (para restaurarla al abrir)."""
+        filter_type = self.config.get("State", "last_category_type", fallback="all")
+        filter_value = self.config.get("State", "last_category_value", fallback="")
+        return filter_type, filter_value
+
+    def set_last_category(self, filter_type: str, filter_value: str):
+        """Guarda la última categoría del Folder List seleccionada."""
+        if "State" not in self.config:
+            self.config["State"] = {}
+        self.config["State"]["last_category_type"] = filter_type
+        self.config["State"]["last_category_value"] = filter_value
         self.save_config()

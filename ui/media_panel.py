@@ -62,8 +62,11 @@ class MediaPreviewPanel(QFrame):
     def _load_image(self, target_label: QLabel, folder: str, rom_name: str):
         """Busca y carga la imagen correspondiente en el QLabel objetivo."""
         dir_path = PathHelper.get_dir(folder)
-        img_path = dir_path / f"{rom_name}.png"
-        
+
+        # Convención MAME: snap/<rom>/0000.png (subcarpeta por rom, no archivo plano)
+        img_path = dir_path / rom_name / "0000.png"
+        if not img_path.exists():
+            img_path = dir_path / f"{rom_name}.png"
         if not img_path.exists():
             img_path = dir_path / f"{rom_name}.jpg"
 

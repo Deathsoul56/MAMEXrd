@@ -1,5 +1,6 @@
+from typing import Optional
 from PyQt6.QtWidgets import (
-    QDockWidget, QTabWidget, QLabel, QTextEdit, QVBoxLayout, QWidget
+    QDockWidget, QTabWidget, QLabel, QTextEdit, QVBoxLayout, QWidget, QSizePolicy
 )
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt, QSize
@@ -18,12 +19,26 @@ class ScalableImageLabel(QLabel):
         
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setMinimumSize(220, 160)
+        # Ignored: evita que el tamaño nativo del pixmap fuerce el crecimiento del dock/ventana
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
         self.setText(f"Sin {folder_name}")
+
+    def sizeHint(self) -> QSize:
+        # QLabel calcula su sizeHint en base al pixmap cargado; lo fijamos para que
+        # el pixmap no imponga el tamaño del dock/ventana (solo se reescala hacia abajo).
+        return QSize(220, 160)
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(1, 1)
 
     def load_rom_image(self, rom_name: str):
         self.current_rom = rom_name
         dir_path = PathHelper.get_dir(self.folder_name)
-        img_path = dir_path / f"{rom_name}.png"
+
+        # Convención MAME: snap/<rom>/0000.png (subcarpeta por rom, no archivo plano)
+        img_path = dir_path / rom_name / "0000.png"
+        if not img_path.exists():
+            img_path = dir_path / f"{rom_name}.png"
         if not img_path.exists():
             img_path = dir_path / f"{rom_name}.jpg"
         if not img_path.exists():

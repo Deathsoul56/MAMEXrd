@@ -8,7 +8,7 @@ QMainWindow {
 
 QWidget {
     font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-    font-size: 13px;
+    font-size: 10pt;
     color: #e1e4ed;
 }
 
@@ -26,7 +26,7 @@ QLineEdit#searchBar {
     border-radius: 6px;
     padding: 8px 14px;
     color: #ffffff;
-    font-size: 14px;
+    font-size: 10.5pt;
 }
 
 QLineEdit#searchBar:focus {
@@ -54,7 +54,7 @@ QPushButton:pressed {
 
 QPushButton#launchBtn {
     background-color: #10b981;
-    font-size: 15px;
+    font-size: 11pt;
     padding: 10px 24px;
 }
 
@@ -103,6 +103,16 @@ QTabBar::tab:selected {
     color: #6366f1;
     border-bottom: 2px solid #6366f1;
     font-weight: bold;
+}
+
+/* Scroll Areas (ej. pestaña Advanced) deben heredar el fondo del tab, no el blanco por defecto */
+QScrollArea {
+    background: transparent;
+    border: none;
+}
+
+QScrollArea > QWidget > QWidget {
+    background: transparent;
 }
 
 /* Scrollbars */

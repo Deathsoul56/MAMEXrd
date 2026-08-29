@@ -61,3 +61,10 @@ MAMEXrd/
 * **Python 3.10+**: Usar `type hints` explícitos en funciones y métodos.
 * **Separación de Capas**: La interfaz de usuario (`ui/`) no debe ejecutar consultas SQL directas ni invocar subprocessos; debe comunicarse a través del controlador/gestor (`core/` y `database/`).
 * **Manejo de Excepciones**: Capturar errores con try-except explícitos y loguear mensajes comprensibles sin crash de la app.
+
+## 4. Control de Versiones (Git)
+
+* **Prohibido por defecto:** Ningún agente puede ejecutar `git commit`, `git push` ni `git merge` (ni operaciones equivalentes como `git rebase` sobre ramas compartidas) por iniciativa propia.
+* **Solo bajo petición explícita:** Estas acciones únicamente se ejecutan cuando el usuario lo pide claramente en el mensaje actual (ej. "haz commit", "sube los cambios", "mergea dev a main").
+* Cambios locales (editar archivos, `git add`, crear ramas nuevas sin publicarlas) sí están permitidos como parte normal del trabajo, pero commit/push/merge siempre requieren instrucción explícita del usuario.
+

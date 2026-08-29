@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Optional
 from pathlib import Path
-from PyQt6.QtCore import QAbstractItemModel, Qt, QModelIndex, pyqtSignal, QPoint
+import zipfile
+from PyQt6.QtCore import QAbstractItemModel, Qt, QModelIndex, pyqtSignal, QPoint, QSize
 from PyQt6.QtWidgets import QTreeView, QMenu
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QAction
 from utils.path_helper import PathHelper
@@ -27,7 +28,10 @@ class GameTableModel(QAbstractItemModel):
 
     def __init__(self, games: Optional[List[Dict[str, Any]]] = None):
         super().__init__()
-        self._icon_cache: Dict[str, QIcon] = {}
+        self._icon_cache: Dict[str, Optional[QIcon]] = {}
+        self._icon_zip: Optional[zipfile.ZipFile] = None
+        self._icon_zip_names: Dict[str, str] = {}
+        self._icon_zip_loaded = False
         self._root_nodes: List[GameNode] = []
         self._sort_column = 0
         self._sort_order = Qt.SortOrder.AscendingOrder
@@ -174,7 +178,8 @@ class GameTableModel(QAbstractItemModel):
 
         elif role == Qt.ItemDataRole.DecorationRole and col == 0:
             rom_name = game.get("rom_name", "")
-            return self._get_game_icon(rom_name)
+            parent_rom = game.get("parent_rom", "") if game.get("is_clone") else ""
+            return self._get_game_icon(rom_name, parent_rom, bool(game.get("has_rom")), game.get("driver_status", "good"))
 
         elif role == Qt.ItemDataRole.TextAlignmentRole:
             if col in (1, 2, 5, 6):
@@ -184,24 +189,108 @@ class GameTableModel(QAbstractItemModel):
         elif role == Qt.ItemDataRole.ForegroundRole:
             if col == 5:  # Columna ROM (Yes/No)
                 return QColor("#10b981") if game.get("has_rom") else QColor("#ef4444")
+            if col == 0 and game.get("has_rom") and game.get("driver_status") == "preliminary":
+                return QColor("#ef4444")  # Driver preliminary/no jugable (misma convención de color que MAMEP)
 
         return None
 
-    def _get_game_icon(self, rom_name: str) -> Optional[QIcon]:
+    # Colores de estado de emulación (misma convención que MAMEP/MAMEUI, tomada del atributo status de -listxml)
+    _STATUS_COLORS = {
+        "good": "#10b981",         # Verde: funciona correctamente
+        "imperfect": "#f59e0b",    # Amarillo/naranja: emulación imperfecta pero jugable
+        "preliminary": "#ef4444",  # Rojo: preliminar / no jugable
+    }
+
+    # Dimensiones del ícono compuesto: [cuadro de color][ícono del rom o espacio en blanco]
+    _SQUARE_WIDTH = 14
+    _ICON_SIZE = 24
+    _ICON_SPACING = 4
+    _COMPOSITE_WIDTH = _SQUARE_WIDTH + _ICON_SPACING + _ICON_SIZE
+
+    def _get_game_icon(self, rom_name: str, parent_rom: str = "", has_rom: bool = False, driver_status: str = "good") -> Optional[QIcon]:
         if rom_name in self._icon_cache:
             return self._icon_cache[rom_name]
 
+        real_pixmap = self._load_pixmap_from_folder(rom_name) or self._load_pixmap_from_zip(rom_name)
+        if not real_pixmap and parent_rom:
+            real_pixmap = self._load_pixmap_from_folder(parent_rom) or self._load_pixmap_from_zip(parent_rom)
+
+        icon = self._build_composite_icon(has_rom, driver_status, real_pixmap)
+        self._icon_cache[rom_name] = icon
+        return icon
+
+    def _build_composite_icon(self, has_rom: bool, driver_status: str, real_pixmap: Optional[QPixmap]) -> QIcon:
+        """Compone [cuadro de estado][ícono propio del rom]; si no hay ícono propio deja el espacio en
+        blanco para que todos los nombres arranquen desde la misma posición (igual que MAMEP)."""
+        color = QColor(self._STATUS_COLORS.get(driver_status, "#10b981")) if has_rom else QColor("#6b7280")
+
+        canvas = QPixmap(self._COMPOSITE_WIDTH, self._ICON_SIZE)
+        canvas.fill(Qt.GlobalColor.transparent)
+
+        painter = QPainter(canvas)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setBrush(color)
+        painter.setPen(QColor("#1f2937"))
+        painter.drawRoundedRect(0, 2, self._SQUARE_WIDTH, self._ICON_SIZE - 4, 2, 2)
+
+        if real_pixmap and not real_pixmap.isNull():
+            scaled = real_pixmap.scaled(
+                self._ICON_SIZE, self._ICON_SIZE,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            x = self._SQUARE_WIDTH + self._ICON_SPACING + (self._ICON_SIZE - scaled.width()) // 2
+            y = (self._ICON_SIZE - scaled.height()) // 2
+            painter.drawPixmap(x, y, scaled)
+        # Si no hay ícono propio, el espacio queda transparente (alineación consistente entre filas)
+
+        painter.end()
+        return QIcon(canvas)
+
+    def _load_pixmap_from_folder(self, rom_name: str) -> Optional[QPixmap]:
         icons_dir = PathHelper.get_dir("icons")
-        icon_path = icons_dir / f"{rom_name}.ico"
-        if not icon_path.exists():
-            icon_path = icons_dir / f"{rom_name}.png"
-
-        if icon_path.exists():
-            icon = QIcon(str(icon_path))
-            self._icon_cache[rom_name] = icon
-            return icon
-
+        for ext in (".ico", ".png"):
+            icon_path = icons_dir / f"{rom_name}{ext}"
+            if icon_path.exists():
+                pixmap = QPixmap(str(icon_path))
+                if not pixmap.isNull():
+                    return pixmap
         return None
+
+    def _load_pixmap_from_zip(self, rom_name: str) -> Optional[QPixmap]:
+        self._ensure_icon_zip_index()
+        if not self._icon_zip:
+            return None
+
+        for ext in (".ico", ".png"):
+            entry = self._icon_zip_names.get(f"{rom_name}{ext}")
+            if entry:
+                try:
+                    pixmap = QPixmap()
+                    pixmap.loadFromData(self._icon_zip.read(entry))
+                    if not pixmap.isNull():
+                        return pixmap
+                except Exception:
+                    return None
+        return None
+
+    def _ensure_icon_zip_index(self):
+        """Indexa icons.zip una sola vez (convención de packs de iconos MAMEUI/MAMEP sin descomprimir)."""
+        if self._icon_zip_loaded:
+            return
+        self._icon_zip_loaded = True
+
+        mame_exe = PathHelper.get_mame_executable()
+        root_dir = mame_exe.parent if mame_exe and mame_exe.exists() else PathHelper.get_base_dir()
+        zip_path = root_dir / "icons.zip"
+        if not zip_path.exists():
+            return
+
+        try:
+            self._icon_zip = zipfile.ZipFile(zip_path, "r")
+            self._icon_zip_names = {Path(name).name.lower(): name for name in self._icon_zip.namelist()}
+        except Exception:
+            self._icon_zip = None
 
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole):
         if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole:
@@ -223,14 +312,19 @@ class GameTableView(QTreeView):
     favorite_toggled = pyqtSignal(str, bool)
     audit_requested = pyqtSignal(str)
     properties_requested = pyqtSignal(str)
+    add_to_folder_requested = pyqtSignal(str, str)  # (rom_name, folder_name)
+    new_folder_requested = pyqtSignal(str)  # (rom_name) -> main_window pide el nombre y crea la carpeta
+    video_settings_requested = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.bg_pixmap: Optional[QPixmap] = None
+        self.custom_folders_provider = None  # Callable[[], List[str]] inyectado por MainWindow
         self._load_bg_pixmap()
 
         self.setRootIsDecorated(True)
         self.setUniformRowHeights(True)
+        self.setIconSize(QSize(GameTableModel._COMPOSITE_WIDTH, GameTableModel._ICON_SIZE))
         self.setItemsExpandable(True)
         self.setExpandsOnDoubleClick(False)  # el doble clic lanza el juego, no expande/contrae
         self.setAlternatingRowColors(True)
@@ -287,7 +381,12 @@ class GameTableView(QTreeView):
         menu = QMenu(self)
 
         # 1. Play <rom_name>
-        game_icon = model._get_game_icon(rom_name)
+        game_icon = model._get_game_icon(
+            rom_name,
+            game.get("parent_rom", "") if game.get("is_clone") else "",
+            bool(game.get("has_rom")),
+            game.get("driver_status", "good"),
+        )
         play_act = QAction(game_icon if game_icon else QIcon(), f"Play {rom_name}", menu)
         play_act.triggered.connect(lambda: self.play_requested.emit(rom_name))
         menu.addAction(play_act)
@@ -310,8 +409,18 @@ class GameTableView(QTreeView):
 
         # 4. Add to Custom Folder >
         custom_folder_menu = menu.addMenu("Add to Custom Folder")
-        add_fav_folder = QAction("Favorites", menu)
-        custom_folder_menu.addAction(add_fav_folder)
+        folder_names = self.custom_folders_provider() if self.custom_folders_provider else []
+        for folder_name in folder_names:
+            add_folder_act = QAction(folder_name, menu)
+            add_folder_act.triggered.connect(
+                lambda checked=False, fn=folder_name: self.add_to_folder_requested.emit(rom_name, fn)
+            )
+            custom_folder_menu.addAction(add_folder_act)
+        if folder_names:
+            custom_folder_menu.addSeparator()
+        new_folder_act = QAction("Nueva carpeta...", menu)
+        new_folder_act.triggered.connect(lambda: self.new_folder_requested.emit(rom_name))
+        custom_folder_menu.addAction(new_folder_act)
 
         # 5. Remove From "Favorites" / Add to "Favorites"
         fav_label = 'Remove From "Favorites"' if is_fav else 'Add to "Favorites"'
@@ -329,6 +438,13 @@ class GameTableView(QTreeView):
         # 7. Memcard: [Empty slot] >
         memcard_menu = menu.addMenu("Memcard: [Empty slot]")
         memcard_menu.addAction(QAction("Insert Memory Card...", menu))
+
+        menu.addSeparator()
+
+        # 7b. Settings for <rom_name>...
+        video_settings_act = QAction(f"Settings for {rom_name}...", menu)
+        video_settings_act.triggered.connect(lambda: self.video_settings_requested.emit(rom_name))
+        menu.addAction(video_settings_act)
 
         menu.addSeparator()
 

@@ -1,7 +1,9 @@
 from PyQt6.QtWidgets import (
-    QDockWidget, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+    QDockWidget, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QPushButton, QInputDialog, QMessageBox
 )
 from PyQt6.QtCore import pyqtSignal, Qt
+from typing import Optional
 from database.db_manager import DatabaseManager
 
 class FolderListDock(QDockWidget):
@@ -28,10 +30,24 @@ class FolderListDock(QDockWidget):
         self.tree.setHeaderHidden(True)
         self.tree.itemClicked.connect(self._on_item_clicked)
 
+        self.new_folder_btn = QPushButton("+ Nueva Carpeta")
+        self.new_folder_btn.clicked.connect(self._on_new_folder_clicked)
+
         self.reload_tree()
 
         layout.addWidget(self.tree)
+        layout.addWidget(self.new_folder_btn)
         self.setWidget(container)
+
+    def _on_new_folder_clicked(self):
+        """Crea una nueva carpeta personalizada vacía desde el Folder List."""
+        name, ok = QInputDialog.getText(self, "Nueva Carpeta", "Nombre de la carpeta:")
+        if not ok or not name.strip():
+            return
+        if not self.db_manager.create_custom_folder(name.strip()):
+            QMessageBox.warning(self, "Nueva Carpeta", "Nombre de carpeta inválido.")
+            return
+        self.reload_tree()
 
     def reload_tree(self):
         """Puebla dinámicamente el árbol de categorías con datos de la BD."""
@@ -92,6 +108,15 @@ class FolderListDock(QDockWidget):
         clones_item.setData(0, Qt.ItemDataRole.UserRole, ("clone", "1"))
         self.tree.addTopLevelItem(clones_item)
 
+        # Categoría: Carpetas personalizadas creadas por el usuario
+        custom_root = QTreeWidgetItem(["Custom Folders"])
+        custom_root.setData(0, Qt.ItemDataRole.UserRole, ("root", "custom_folder"))
+        for folder_name in self.db_manager.get_custom_folders():
+            child = QTreeWidgetItem([folder_name])
+            child.setData(0, Qt.ItemDataRole.UserRole, ("custom_folder", folder_name))
+            custom_root.addChild(child)
+        self.tree.addTopLevelItem(custom_root)
+
         self.tree.collapseAll()
 
     def _on_item_clicked(self, item: QTreeWidgetItem, column: int):
@@ -100,3 +125,23 @@ class FolderListDock(QDockWidget):
             filter_type, filter_value = data
             if filter_type != "root":
                 self.category_selected.emit(filter_type, filter_value)
+
+    def select_category(self, filter_type: str, filter_value: str):
+        """Selecciona visualmente la categoría indicada (restauración de la última sesión al abrir)."""
+        def _search(item: QTreeWidgetItem) -> Optional[QTreeWidgetItem]:
+            if item.data(0, Qt.ItemDataRole.UserRole) == (filter_type, filter_value):
+                return item
+            for i in range(item.childCount()):
+                found = _search(item.child(i))
+                if found:
+                    return found
+            return None
+
+        for i in range(self.tree.topLevelItemCount()):
+            found = _search(self.tree.topLevelItem(i))
+            if found:
+                if found.parent():
+                    found.parent().setExpanded(True)
+                self.tree.setCurrentItem(found)
+                self.category_selected.emit(filter_type, filter_value)
+                return

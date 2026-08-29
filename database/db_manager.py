@@ -59,6 +59,13 @@ class DatabaseManager:
                 );
             """)
 
+            # Tabla de nombres de carpetas personalizadas (permite crear carpetas vacías)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS folders (
+                    name TEXT PRIMARY KEY
+                );
+            """)
+
             conn.commit()
 
             self._migrate_schema(conn)
@@ -119,6 +126,40 @@ class DatabaseManager:
                     f.write(f"{g['rom_name']}\n")
         except Exception as e:
             print(f"Error exportando Favorites.ini: {e}")
+
+    def get_custom_folders(self) -> List[str]:
+        """Devuelve los nombres de las carpetas personalizadas creadas por el usuario."""
+        with self.get_connection() as conn:
+            rows = conn.execute("SELECT name FROM folders ORDER BY name COLLATE NOCASE").fetchall()
+            return [row["name"] for row in rows]
+
+    def create_custom_folder(self, folder_name: str) -> bool:
+        """Crea una nueva carpeta personalizada (vacía) si no existe ya."""
+        folder_name = folder_name.strip()
+        if not folder_name:
+            return False
+        with self.get_connection() as conn:
+            conn.execute("INSERT OR IGNORE INTO folders (name) VALUES (?)", (folder_name,))
+            conn.commit()
+        return True
+
+    def add_rom_to_folder(self, folder_name: str, rom_name: str):
+        """Agrega un rom a una carpeta personalizada (la crea si aún no existe)."""
+        with self.get_connection() as conn:
+            conn.execute("INSERT OR IGNORE INTO folders (name) VALUES (?)", (folder_name,))
+            conn.execute(
+                "INSERT OR IGNORE INTO custom_folders (folder_name, rom_name) VALUES (?, ?)",
+                (folder_name, rom_name)
+            )
+            conn.commit()
+
+    def get_roms_in_folder(self, folder_name: str) -> List[str]:
+        """Devuelve los rom_name que pertenecen a una carpeta personalizada."""
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                "SELECT rom_name FROM custom_folders WHERE folder_name = ?", (folder_name,)
+            ).fetchall()
+            return [row["rom_name"] for row in rows]
 
     def increment_play_count(self, rom_name: str):
         """Incrementa el contador de ejecuciones y registra la última fecha de partida."""

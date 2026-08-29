@@ -17,6 +17,31 @@ def clean_bytes_to_text(raw_bytes: bytes) -> str:
         text = clean_b.decode("utf-8", errors="ignore")
     return text.replace('\x00', '')
 
+def get_screen_display_info(rom_name: str, mame_executable: Optional[Path] = None) -> Optional[Dict[str, int]]:
+    """
+    Ejecuta `mame.exe -listxml <rom_name>` (consulta puntual y rápida, no abre ventana
+    de juego) y devuelve la resolución/rotación real de la primera pantalla, ej.
+    {"width": 384, "height": 224, "rotate": 0}, o None si no se pudo determinar.
+    """
+    mame_exe = mame_executable or PathHelper.get_mame_executable()
+    if not mame_exe or not mame_exe.exists():
+        return None
+    try:
+        result = subprocess.run(
+            [str(mame_exe), "-listxml", rom_name], capture_output=True, timeout=10
+        )
+        root = ET.fromstring(clean_bytes_to_text(result.stdout))
+        display = root.find("./machine/display")
+        if display is None:
+            return None
+        return {
+            "width": int(display.get("width", 0)),
+            "height": int(display.get("height", 0)),
+            "rotate": int(display.get("rotate", 0)),
+        }
+    except Exception:
+        return None
+
 class MAMEInfoParser:
     """
     Parser oficial de metadatos de MAME.
