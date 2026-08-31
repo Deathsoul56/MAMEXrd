@@ -10,10 +10,17 @@ class PathHelper:
     @staticmethod
     def get_base_dir() -> Path:
         """Retorna el directorio base del ejecutable o script."""
+        main_module = sys.modules.get("__main__")
+        if hasattr(main_module, "__compiled__"):
+            # Nuitka --onefile se auto-extrae y reejecuta desde una carpeta temporal,
+            # por lo que sys.executable no sirve aquí: usar el argv0 original del .exe.
+            original_argv0 = getattr(main_module.__compiled__, "original_argv0", None)
+            if original_argv0:
+                return Path(original_argv0).resolve().parent
+            return Path(sys.executable).resolve().parent
         if getattr(sys, 'frozen', False):
             return Path(sys.executable).parent
-        else:
-            return Path(os.getcwd())
+        return Path(os.getcwd())
 
     @classmethod
     def get_mame_executable(cls) -> Optional[Path]:

@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QItemSelection
 from PyQt6.QtGui import QAction, QIcon
 from pathlib import Path
+from typing import Optional
 
 from database.db_manager import DatabaseManager
 from core.mame_runner import MAMERunner
@@ -17,6 +18,8 @@ from ui.media_dock import MediaDockWidget, InfoDockWidget
 from ui.first_boot_dialog import FirstBootDialog
 from ui.settings_dialog import MAMESettingsDialog
 from ui.game_settings_dialog import GameSettingsDialog
+from ui.loading_dialog import LoadingDialog
+from ui.about_dialog import AboutDialog
 from ui.styles import DARK_THEME_QSS
 from utils.path_helper import PathHelper
 from utils.config_manager import ConfigManager
@@ -29,7 +32,7 @@ class MainWindow(QMainWindow):
     """
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("MAMEXrd 1.0 - MAME 0.289 (mame0289)")
+        self.setWindowTitle("MAMEXrd 0.1 - MAME 0.289 (mame0289)")
         self.resize(1280, 760)
         self.setStyleSheet(DARK_THEME_QSS)
 
@@ -40,6 +43,7 @@ class MainWindow(QMainWindow):
         self.current_filter_type = "all"
         self.current_filter_value = ""
         self.config_manager = ConfigManager()
+        self.loading_dialog: Optional[LoadingDialog] = None
 
         # Comprobar Primer Inicio si mame.exe no está configurado
         self._check_first_boot()
@@ -54,6 +58,10 @@ class MainWindow(QMainWindow):
         self._restore_window_state()
         self._load_games()
         self._restore_last_category()
+
+        # Primer inicio con base de datos vacía: importar el catálogo del core automáticamente
+        if not self.all_games and PathHelper.get_mame_executable():
+            self._on_import_full_romset()
 
     def _restore_window_state(self):
         """Restaura posición, tamaño y layout de docks guardados del último cierre."""
@@ -98,33 +106,33 @@ class MainWindow(QMainWindow):
 
         # Menú View
         view_menu = menubar.addMenu("View")
-        toggle_folder_act = QAction("📁 Mostrar / Ocultar Carpetas", self)
+        toggle_folder_act = QAction("📁 Show / Hide Folders", self)
         toggle_folder_act.triggered.connect(self._toggle_folder_dock)
         view_menu.addAction(toggle_folder_act)
 
-        toggle_media_act = QAction("🖼 Mostrar / Ocultar Medios", self)
+        toggle_media_act = QAction("🖼 Show / Hide Media", self)
         toggle_media_act.triggered.connect(self._toggle_media_docks)
         view_menu.addAction(toggle_media_act)
 
         # Menú Options
         options_menu = menubar.addMenu("Options")
-        audit_act = QAction("🔍 Auditar / Escanear ROMs", self)
+        audit_act = QAction("🔍 Audit / Scan ROMs", self)
         audit_act.setShortcut("F5")
         audit_act.triggered.connect(self._on_audit_roms)
         options_menu.addAction(audit_act)
 
-        import_act = QAction("📀 Importar Romset Completo (-listxml)", self)
+        import_act = QAction("📀 Import Full Romset (-listxml)", self)
         import_act.triggered.connect(self._on_import_full_romset)
         options_menu.addAction(import_act)
 
         options_menu.addSeparator()
-        core_settings_act = QAction("⚙ Opciones de MAME (Core)", self)
+        core_settings_act = QAction("⚙ MAME Options (Core)", self)
         core_settings_act.triggered.connect(self._on_open_core_settings)
         options_menu.addAction(core_settings_act)
 
         # Menú Help
         help_menu = menubar.addMenu("Help")
-        about_act = QAction("Acerca de MAMEXrd", self)
+        about_act = QAction("About MAMEXrd", self)
         about_act.triggered.connect(self._on_about)
         help_menu.addAction(about_act)
 
@@ -134,20 +142,20 @@ class MainWindow(QMainWindow):
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
 
-        self.play_btn = QPushButton("▶ JUGAR")
+        self.play_btn = QPushButton("▶ PLAY")
         self.play_btn.setObjectName("launchBtn")
         self.play_btn.clicked.connect(self._on_launch_game)
 
-        self.audit_btn = QPushButton("🔍 AUDITAR ROMS")
+        self.audit_btn = QPushButton("🔍 AUDIT ROMS")
         self.audit_btn.clicked.connect(self._on_audit_roms)
 
-        self.toggle_folder_btn = QPushButton("📁 CARPETAS")
+        self.toggle_folder_btn = QPushButton("📁 FOLDERS")
         self.toggle_folder_btn.clicked.connect(self._toggle_folder_dock)
 
-        self.toggle_media_btn = QPushButton("🖼 MEDIOS")
+        self.toggle_media_btn = QPushButton("🖼 MEDIA")
         self.toggle_media_btn.clicked.connect(self._toggle_media_docks)
 
-        self.settings_btn = QPushButton("⚙ OPCIONES")
+        self.settings_btn = QPushButton("⚙ OPTIONS")
         self.settings_btn.clicked.connect(self._on_open_core_settings)
 
         toolbar.addWidget(self.play_btn)
@@ -162,7 +170,7 @@ class MainWindow(QMainWindow):
 
         self.search_bar = QLineEdit()
         self.search_bar.setObjectName("searchBar")
-        self.search_bar.setPlaceholderText("🔍 Buscar juego por título o ROM...")
+        self.search_bar.setPlaceholderText("🔍 Search game by title or ROM...")
         self.search_bar.setMaximumWidth(300)
         toolbar.addWidget(self.search_bar)
 
@@ -191,8 +199,8 @@ class MainWindow(QMainWindow):
         self.statusbar = QStatusBar(self)
         self.setStatusBar(self.statusbar)
 
-        self.status_game_lbl = QLabel("Selecciona un juego para ver detalles")
-        self.status_count_lbl = QLabel("0 juegos cargados")
+        self.status_game_lbl = QLabel("Select a game to view details")
+        self.status_count_lbl = QLabel("0 games loaded")
 
         self.statusbar.addWidget(self.status_game_lbl, stretch=3)
         self.statusbar.addPermanentWidget(self.status_count_lbl)
@@ -238,7 +246,7 @@ class MainWindow(QMainWindow):
         base_games = self._get_category_games(self.current_filter_type, self.current_filter_value)
         if not text.strip():
             self.table_model.set_games(base_games)
-            self.status_count_lbl.setText(f"{len(base_games)} juegos en '{self.current_filter_value or self.current_filter_type}'")
+            self.status_count_lbl.setText(f"{len(base_games)} games in '{self.current_filter_value or self.current_filter_type}'")
             return
 
         query = text.lower()
@@ -247,7 +255,7 @@ class MainWindow(QMainWindow):
             if query in g.get("rom_name", "").lower() or query in g.get("title", "").lower()
         ]
         self.table_model.set_games(filtered)
-        self.status_count_lbl.setText(f"{len(filtered)} juegos encontrados")
+        self.status_count_lbl.setText(f"{len(filtered)} games found")
 
     def _on_category_filtered(self, filter_type: str, filter_value: str):
         self.current_filter_type = filter_type
@@ -283,75 +291,93 @@ class MainWindow(QMainWindow):
         """Filtra la tabla sin tocar la última categoría persistida (usado por _load_games para no pisar el estado guardado)."""
         filtered = self._get_category_games(filter_type, filter_value)
         self.table_model.set_games(filtered)
-        self.status_count_lbl.setText(f"{len(filtered)} juegos en '{filter_value or filter_type}'")
+        self.status_count_lbl.setText(f"{len(filtered)} games in '{filter_value or filter_type}'")
 
     def _on_toggle_favorite(self, rom_name: str, new_favorite_state: bool):
         self.db_manager.set_favorite(rom_name, new_favorite_state)
         self._load_games()
         self.folder_dock.reload_tree()
-        msg = f"'{rom_name}' agregado a Favoritos" if new_favorite_state else f"'{rom_name}' removido de Favoritos"
+        msg = f"'{rom_name}' added to Favorites" if new_favorite_state else f"'{rom_name}' removed from Favorites"
         self.statusbar.showMessage(msg, 3000)
 
     def _on_add_to_folder(self, rom_name: str, folder_name: str):
         self.db_manager.add_rom_to_folder(folder_name, rom_name)
         self.folder_dock.reload_tree()
-        self.statusbar.showMessage(f"'{rom_name}' agregado a '{folder_name}'", 3000)
+        self.statusbar.showMessage(f"'{rom_name}' added to '{folder_name}'", 3000)
 
     def _on_new_folder_requested(self, rom_name: str):
-        name, ok = QInputDialog.getText(self, "Nueva Carpeta", "Nombre de la carpeta:")
+        name, ok = QInputDialog.getText(self, "New Folder", "Folder name:")
         if not ok or not name.strip():
             return
         folder_name = name.strip()
         if not self.db_manager.create_custom_folder(folder_name):
-            QMessageBox.warning(self, "Nueva Carpeta", "Nombre de carpeta inválido.")
+            QMessageBox.warning(self, "New Folder", "Invalid folder name.")
             return
         self._on_add_to_folder(rom_name, folder_name)
 
     def _on_record_game(self, rom_name: str):
         self.selected_rom = rom_name
-        self.statusbar.showMessage(f"Iniciando MAME con grabación de replay (.inp) para: {rom_name}...", 4000)
+        self.statusbar.showMessage(f"Starting MAME with replay recording (.inp) for: {rom_name}...", 4000)
         self.mame_runner.launch_game(rom_name, extra_args=["-record", f"{rom_name}.inp"])
 
     def _on_audit_single_game(self, rom_name: str):
-        self.statusbar.showMessage(f"Auditando ROM: {rom_name}...", 3000)
+        self.statusbar.showMessage(f"Auditing ROM: {rom_name}...", 3000)
 
     def _on_show_properties(self, rom_name: str):
         game = next((g for g in self.all_games if g["rom_name"] == rom_name), None)
         if game:
-            info = f"<b>Título:</b> {game.get('title')}<br>" \
+            info = f"<b>Title:</b> {game.get('title')}<br>" \
                    f"<b>ROM:</b> {game.get('rom_name')}<br>" \
-                   f"<b>Año:</b> {game.get('year')}<br>" \
-                   f"<b>Fabricante:</b> {game.get('manufacturer')}<br>" \
+                   f"<b>Year:</b> {game.get('year')}<br>" \
+                   f"<b>Manufacturer:</b> {game.get('manufacturer')}<br>" \
                    f"<b>Driver:</b> {game.get('driver', 'neogeo.cpp')}<br>" \
-                   f"<b>Partidas jugadas:</b> {game.get('play_count', 0)}"
-            QMessageBox.information(self, f"Propiedades - {rom_name}", info)
+                   f"<b>Play Count:</b> {game.get('play_count', 0)}"
+            QMessageBox.information(self, f"Properties - {rom_name}", info)
 
     def _on_audit_roms(self):
-        self.statusbar.showMessage("Escaneando carpeta roms/...")
+        self.statusbar.showMessage("Scanning roms/ folder...")
         self.scan_thread = ROMScannerThread(self.db_manager)
         self.scan_thread.scan_finished.connect(self._on_audit_finished)
         self.scan_thread.start()
 
     def _on_audit_finished(self, count: int):
-        self.statusbar.showMessage(f"Escaneo completado. Encontradas {count} ROMs.", 5000)
+        self.statusbar.showMessage(f"Scan completed. Found {count} ROMs.", 5000)
         self._load_games()
+        self._close_loading_dialog()
 
     def _on_import_full_romset(self):
-        self.statusbar.showMessage("Importando catálogo completo del core...")
+        self.statusbar.showMessage("Importing full core catalog...")
+        self.loading_dialog = LoadingDialog(self, "Importing MAME catalog (-listxml)...\nThis may take a few seconds.")
+        self.loading_dialog.show()
         self.import_thread = RomsetImportThread(self.db_manager)
-        self.import_thread.progress.connect(lambda msg: self.statusbar.showMessage(msg))
+        self.import_thread.progress.connect(self._on_import_progress)
         self.import_thread.import_finished.connect(self._on_import_full_romset_finished)
         self.import_thread.import_error.connect(self._on_import_full_romset_error)
         self.import_thread.start()
 
+    def _on_import_progress(self, msg: str):
+        self.statusbar.showMessage(msg)
+        if self.loading_dialog:
+            self.loading_dialog.set_message(msg)
+
     def _on_import_full_romset_finished(self, count: int):
-        self.statusbar.showMessage(f"Romset completo importado: {count} juegos.", 5000)
+        self.statusbar.showMessage(f"Full romset imported: {count} games.", 5000)
         self._load_games()
         self.folder_dock.reload_tree()
+        if self.loading_dialog:
+            self.loading_dialog.set_message("Verifying local ROMs in roms/...")
+        # Mark which ROMs are already present in roms/
+        self._on_audit_roms()
 
     def _on_import_full_romset_error(self, err_msg: str):
         self.statusbar.clearMessage()
-        QMessageBox.warning(self, "Error de importación", err_msg)
+        self._close_loading_dialog()
+        QMessageBox.warning(self, "Import Error", err_msg)
+
+    def _close_loading_dialog(self):
+        if self.loading_dialog:
+            self.loading_dialog.close()
+            self.loading_dialog = None
 
     def _toggle_folder_dock(self):
         self.folder_dock.setVisible(not self.folder_dock.isVisible())
@@ -367,7 +393,7 @@ class MainWindow(QMainWindow):
 
     def _on_launch_game(self):
         if not self.selected_rom:
-            QMessageBox.information(self, "Seleccionar juego", "Por favor selecciona un juego de la lista.")
+            QMessageBox.information(self, "Select Game", "Please select a game from the list.")
             return
 
         self.db_manager.increment_play_count(self.selected_rom)
@@ -390,10 +416,10 @@ class MainWindow(QMainWindow):
                 self.restoreGeometry(geometry)
 
     def _on_mame_error(self, err_msg: str):
-        QMessageBox.warning(self, "Error MAME", err_msg)
+        QMessageBox.warning(self, "MAME Error", err_msg)
 
     def _on_about(self):
-        QMessageBox.about(self, "Acerca de MAMEXrd", "<b>MAMEXrd S E X Edition v1.0</b><br>Replica nativa moderna en PyQt6 de M+GUI / MAMEPGUI.<br>Desarrollado con Python 3 y SQLite3.")
+        AboutDialog(self).exec()
 
     def _on_open_core_settings(self):
         dialog = MAMESettingsDialog(self)

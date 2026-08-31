@@ -28,7 +28,8 @@ def get_screen_display_info(rom_name: str, mame_executable: Optional[Path] = Non
         return None
     try:
         result = subprocess.run(
-            [str(mame_exe), "-listxml", rom_name], capture_output=True, timeout=10
+            [str(mame_exe), "-listxml", rom_name], capture_output=True, timeout=10,
+            creationflags=subprocess.CREATE_NO_WINDOW
         )
         root = ET.fromstring(clean_bytes_to_text(result.stdout))
         display = root.find("./machine/display")
@@ -70,7 +71,7 @@ class MAMEInfoParser:
             cmd.extend(rom_list[:200])
 
         try:
-            result = subprocess.run(cmd, capture_output=True)
+            result = subprocess.run(cmd, capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
             if result.returncode != 0:
                 return 0
 
@@ -120,7 +121,7 @@ class MAMEInfoParser:
             cmd = [str(self.mame_exe), "-listxml"] + chunk
 
             try:
-                result = subprocess.run(cmd, capture_output=True)
+                result = subprocess.run(cmd, capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
                 if result.returncode != 0 or not result.stdout:
                     continue
 

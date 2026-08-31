@@ -28,36 +28,36 @@ class FirstBootDialog(QDialog):
         layout.setSpacing(12)
         layout.setContentsMargins(16, 16, 16, 16)
 
-        label = QLabel("Selecciona la ubicación del ejecutable mame.exe para continuar:")
+        label = QLabel("Select the location of the mame.exe executable to continue:")
         label.setStyleSheet("font-weight: bold; font-size: 13px;")
         layout.addWidget(label)
 
-        # Fila de selección de archivo
+        # File selection row
         file_layout = QHBoxLayout()
         self.path_input = QLineEdit()
-        self.path_input.setPlaceholderText("Ejemplo: C:/MAME/mame.exe")
+        self.path_input.setPlaceholderText("Example: C:/MAME/mame.exe")
 
-        # Intentar poner sugerencia si existe alguna carpeta local
-        dev_mame = PathHelper.get_base_dir() / "MAME 0.289" / "mame.exe"
-        if dev_mame.exists():
-            self.path_input.setText(str(dev_mame))
+        # Auto-suggest if a mame.exe is detected in the current folder or known subfolders
+        suggested = PathHelper.get_mame_executable()
+        if suggested and suggested.exists():
+            self.path_input.setText(str(suggested))
 
-        self.browse_btn = QPushButton("Examinar...")
+        self.browse_btn = QPushButton("Browse...")
         self.browse_btn.clicked.connect(self._on_browse)
 
         file_layout.addWidget(self.path_input, stretch=3)
         file_layout.addWidget(self.browse_btn, stretch=1)
         layout.addLayout(file_layout)
 
-        # Botones de Acción
+        # Action buttons
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
 
-        self.ok_btn = QPushButton("Aceptar")
+        self.ok_btn = QPushButton("OK")
         self.ok_btn.setDefault(True)
         self.ok_btn.clicked.connect(self._on_accept)
 
-        self.cancel_btn = QPushButton("Cancelar")
+        self.cancel_btn = QPushButton("Cancel")
         self.cancel_btn.clicked.connect(self.reject)
 
         btn_layout.addWidget(self.ok_btn)
@@ -67,9 +67,9 @@ class FirstBootDialog(QDialog):
     def _on_browse(self):
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "Seleccionar ejecutable MAME",
+            "Select MAME executable",
             str(PathHelper.get_base_dir()),
-            "Ejecutables MAME (mame.exe mame*.exe);;Todos los archivos (*.*)"
+            "MAME executables (mame.exe mame*.exe);;All files (*.*)"
         )
         if file_path:
             self.path_input.setText(file_path)
@@ -77,12 +77,12 @@ class FirstBootDialog(QDialog):
     def _on_accept(self):
         path_str = self.path_input.text().strip()
         if not path_str:
-            QMessageBox.warning(self, "Ruta requerida", "Debes seleccionar un ejecutable de MAME.")
+            QMessageBox.warning(self, "Path Required", "You must select a MAME executable.")
             return
 
         p = Path(path_str)
         if not p.exists() or not p.is_file():
-            QMessageBox.critical(self, "Archivo no encontrado", f"No se encontró el ejecutable en:\n{path_str}")
+            QMessageBox.critical(self, "File Not Found", f"Could not find the executable at:\n{path_str}")
             return
 
         # Guardar en configuración

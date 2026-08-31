@@ -30,7 +30,7 @@ class FolderListDock(QDockWidget):
         self.tree.setHeaderHidden(True)
         self.tree.itemClicked.connect(self._on_item_clicked)
 
-        self.new_folder_btn = QPushButton("+ Nueva Carpeta")
+        self.new_folder_btn = QPushButton("+ New Folder")
         self.new_folder_btn.clicked.connect(self._on_new_folder_clicked)
 
         self.reload_tree()
@@ -41,11 +41,11 @@ class FolderListDock(QDockWidget):
 
     def _on_new_folder_clicked(self):
         """Crea una nueva carpeta personalizada vacía desde el Folder List."""
-        name, ok = QInputDialog.getText(self, "Nueva Carpeta", "Nombre de la carpeta:")
+        name, ok = QInputDialog.getText(self, "New Folder", "Folder name:")
         if not ok or not name.strip():
             return
         if not self.db_manager.create_custom_folder(name.strip()):
-            QMessageBox.warning(self, "Nueva Carpeta", "Nombre de carpeta inválido.")
+            QMessageBox.warning(self, "New Folder", "Invalid folder name.")
             return
         self.reload_tree()
 

@@ -21,7 +21,7 @@ class ScalableImageLabel(QLabel):
         self.setMinimumSize(220, 160)
         # Ignored: evita que el tamaño nativo del pixmap fuerce el crecimiento del dock/ventana
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
-        self.setText(f"Sin {folder_name}")
+        self.setText(f"No {folder_name}")
 
     def sizeHint(self) -> QSize:
         # QLabel calcula su sizeHint en base al pixmap cargado; lo fijamos para que
@@ -49,7 +49,7 @@ class ScalableImageLabel(QLabel):
             self._update_scaled_pixmap()
         else:
             self.original_pixmap = None
-            self.setText(f"Sin {self.folder_name[:-1] if self.folder_name.endswith('s') else self.folder_name}")
+            self.setText(f"No {self.folder_name[:-1] if self.folder_name.endswith('s') else self.folder_name}")
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -159,9 +159,9 @@ class InfoDockWidget(QDockWidget):
 
     def update_info(self, rom_name: str, driver_info: str = ""):
         hist = self.history_parser.get_info(rom_name)
-        self.history_text.setText(hist if hist else "Sin información disponible en history.dat.")
+        self.history_text.setText(hist if hist else "No information available in history.dat.")
 
         minfo = self.mameinfo_parser.get_info(rom_name)
-        self.mameinfo_text.setText(minfo if minfo else "Sin información disponible en mameinfo.dat.")
+        self.mameinfo_text.setText(minfo if minfo else "No information available in mameinfo.dat.")
 
-        self.driver_text.setText(f"Driver MAME: {driver_info}\nEstado del sistema: Emulación soportada (Good).")
+        self.driver_text.setText(f"MAME Driver: {driver_info}\nSystem Status: Emulation supported (Good).")

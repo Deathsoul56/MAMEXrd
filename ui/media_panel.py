@@ -21,28 +21,28 @@ class MediaPreviewPanel(QFrame):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
 
-        # Tabs de Medios
+        # Media tabs
         self.tabs = QTabWidget()
 
-        # Tab Captura (Snap)
-        self.snap_label = QLabel("Selecciona un juego")
+        # Snapshot tab
+        self.snap_label = QLabel("Select a game")
         self.snap_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.tabs.addTab(self.snap_label, "Snap")
 
-        # Tab Título
-        self.title_label = QLabel("Selecciona un juego")
+        # Title tab
+        self.title_label = QLabel("Select a game")
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.tabs.addTab(self.title_label, "Título")
+        self.tabs.addTab(self.title_label, "Title")
 
-        # Tab Marquesina
-        self.marquee_label = QLabel("Selecciona un juego")
+        # Marquee tab
+        self.marquee_label = QLabel("Select a game")
         self.marquee_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.tabs.addTab(self.marquee_label, "Marquee")
 
-        # Tab Historia
+        # History tab
         self.history_text = QTextEdit()
         self.history_text.setReadOnly(True)
-        self.tabs.addTab(self.history_text, "Historia")
+        self.tabs.addTab(self.history_text, "History")
 
         layout.addWidget(self.tabs)
 
@@ -57,7 +57,7 @@ class MediaPreviewPanel(QFrame):
         if info:
             self.history_text.setText(info)
         else:
-            self.history_text.setText("Sin información histórica disponible para este juego.")
+            self.history_text.setText("No historical information available for this game.")
 
     def _load_image(self, target_label: QLabel, folder: str, rom_name: str):
         """Busca y carga la imagen correspondiente en el QLabel objetivo."""

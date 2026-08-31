@@ -28,7 +28,10 @@ class RomsetImportThread(QThread):
 
         self.progress.emit("Ejecutando mame.exe -listxml (esto puede tardar un momento)...")
         try:
-            result = subprocess.run([str(mame_exe), "-listxml"], capture_output=True)
+            result = subprocess.run(
+                [str(mame_exe), "-listxml"], capture_output=True,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
         except Exception as e:
             self.import_error.emit(f"Error ejecutando mame.exe -listxml: {e}")
             return

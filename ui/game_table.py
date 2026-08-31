@@ -418,7 +418,7 @@ class GameTableView(QTreeView):
             custom_folder_menu.addAction(add_folder_act)
         if folder_names:
             custom_folder_menu.addSeparator()
-        new_folder_act = QAction("Nueva carpeta...", menu)
+        new_folder_act = QAction("New folder...", menu)
         new_folder_act.triggered.connect(lambda: self.new_folder_requested.emit(rom_name))
         custom_folder_menu.addAction(new_folder_act)
 

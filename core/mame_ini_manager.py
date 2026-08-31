@@ -28,7 +28,11 @@ class MAMEIniManager(IniKeyValueStore):
             exe = PathHelper.get_mame_executable()
             if exe and exe.exists():
                 try:
-                    subprocess.run([str(exe), "-createconfig"], capture_output=True, cwd=str(self.mame_dir))
+                    # CREATE_NO_WINDOW evita el flash de consola que MAME abre en modo -createconfig
+                    subprocess.run(
+                        [str(exe), "-createconfig"], capture_output=True, cwd=str(self.mame_dir),
+                        creationflags=subprocess.CREATE_NO_WINDOW
+                    )
                 except Exception as e:
                     print(f"Error generando {self.ini_filename}: {e}")
         return self.ini_path.exists()
