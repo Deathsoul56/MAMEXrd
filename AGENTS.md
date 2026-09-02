@@ -68,3 +68,9 @@ MAMEXrd/
 * **Solo bajo petición explícita:** Estas acciones únicamente se ejecutan cuando el usuario lo pide claramente en el mensaje actual (ej. "haz commit", "sube los cambios", "mergea dev a main").
 * Cambios locales (editar archivos, `git add`, crear ramas nuevas sin publicarlas) sí están permitidos como parte normal del trabajo, pero commit/push/merge siempre requieren instrucción explícita del usuario.
 
+## 5. Releases
+
+* Los releases (zips distribuibles) se generan con `scripts/package_release.py`, que empaqueta el `.exe` compilado con Nuitka (`build/MAMEXrd.exe`) junto a `LICENSE` en `MAMEXrd-v{version}-win64.zip`.
+* La versión se lee automáticamente de `MAMEXRD_VERSION` en `ui/about_dialog.py`.
+* Antes de empaquetar hay que compilar el `.exe` con el comando de Nuitka (ver `BUILD_CMD` dentro del propio script).
+

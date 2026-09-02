@@ -46,6 +46,8 @@ python main.py
 
 En el primer arranque, si no se detecta `mame.exe` automáticamente, se pedirá su ubicación mediante un diálogo de configuración inicial.
 
+![Primer inicio](screenshots/MAMEX%20Primer%20Inicio.png)
+
 ## Estructura del proyecto
 
 ```text
