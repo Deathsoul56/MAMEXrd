@@ -20,6 +20,11 @@ class PathHelper:
             return Path(sys.executable).resolve().parent
         if getattr(sys, 'frozen', False):
             return Path(sys.executable).parent
+        # Modo desarrollo: usar la carpeta de main.py, no el cwd del proceso
+        # (python main.py puede invocarse desde un cwd distinto al del repo).
+        main_file = getattr(main_module, "__file__", None)
+        if main_file:
+            return Path(main_file).resolve().parent
         return Path(os.getcwd())
 
     @classmethod

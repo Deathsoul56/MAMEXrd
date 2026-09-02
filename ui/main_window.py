@@ -89,7 +89,18 @@ class MainWindow(QMainWindow):
         mame_exe = PathHelper.get_mame_executable()
         if not mame_exe or not mame_exe.exists():
             dialog = FirstBootDialog(self)
-            dialog.exec()
+            if not dialog.exec():
+                QMessageBox.warning(
+                    self, "MAME Not Configured",
+                    "No MAME executable was configured, so the game list will be empty.\n"
+                    "You can set it later from Options > Configure MAME Executable..."
+                )
+
+    def _on_configure_mame_path(self):
+        """Permite reconfigurar la ruta de mame.exe en cualquier momento (ej. tras un primer inicio cancelado o incorrecto)."""
+        dialog = FirstBootDialog(self)
+        if dialog.exec() and not self.all_games:
+            self._on_import_full_romset()
 
     def _init_menu_bar(self):
         menubar = self.menuBar()
@@ -124,6 +135,11 @@ class MainWindow(QMainWindow):
         import_act = QAction("📀 Import Full Romset (-listxml)", self)
         import_act.triggered.connect(self._on_import_full_romset)
         options_menu.addAction(import_act)
+
+        options_menu.addSeparator()
+        mame_path_act = QAction("📂 Configure MAME Executable...", self)
+        mame_path_act.triggered.connect(self._on_configure_mame_path)
+        options_menu.addAction(mame_path_act)
 
         options_menu.addSeparator()
         core_settings_act = QAction("⚙ MAME Options (Core)", self)
