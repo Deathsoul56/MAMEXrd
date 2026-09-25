@@ -70,10 +70,11 @@ class MediaDockWidget(QDockWidget):
     Panel acoplable superior derecho para Medios y Artes Gráficas (Réplica Legacy).
     Pestañas verticales a la derecha: Title, Snapshot, Marquee, Flyer, Cabinet, Control Panel, PCB.
     """
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, config_manager=None):
         super().__init__("Title / Media", parent)
         self.setObjectName("MediaDockWidget")
         self.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea)
+        self.config_manager = config_manager
 
         self._init_ui()
 
@@ -101,8 +102,16 @@ class MediaDockWidget(QDockWidget):
         self.tabs.addTab(self.cpanel_label, "Control Panel")
         self.tabs.addTab(self.pcb_label, "PCB")
 
+        if self.config_manager:
+            self.tabs.setCurrentIndex(self.config_manager.get_last_media_tab())
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+
         layout.addWidget(self.tabs)
         self.setWidget(container)
+
+    def _on_tab_changed(self, index: int):
+        if self.config_manager:
+            self.config_manager.set_last_media_tab(index)
 
     def update_media(self, rom_name: str):
         """Carga y muestra los medios gráficos para la ROM seleccionada."""

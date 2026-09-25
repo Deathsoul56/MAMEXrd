@@ -96,3 +96,14 @@ class ConfigManager:
         self.config["State"]["last_category_type"] = filter_type
         self.config["State"]["last_category_value"] = filter_value
         self.save_config()
+
+    def get_last_media_tab(self) -> int:
+        """Obtiene el índice de la última pestaña activa del panel Title/Media."""
+        return self.config.getint("State", "last_media_tab", fallback=0)
+
+    def set_last_media_tab(self, index: int):
+        """Guarda el índice de la pestaña activa del panel Title/Media."""
+        if "State" not in self.config:
+            self.config["State"] = {}
+        self.config["State"]["last_media_tab"] = str(index)
+        self.save_config()

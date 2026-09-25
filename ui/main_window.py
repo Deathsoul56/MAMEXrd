@@ -194,7 +194,7 @@ class MainWindow(QMainWindow):
         self.folder_dock = FolderListDock(self.db_manager, self)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.folder_dock)
 
-        self.media_dock = MediaDockWidget(self)
+        self.media_dock = MediaDockWidget(self, config_manager=self.config_manager)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.media_dock)
 
         self.info_dock = InfoDockWidget(self)
@@ -225,6 +225,7 @@ class MainWindow(QMainWindow):
         self.table_view.selectionModel().selectionChanged.connect(self._on_game_selected)
         self.table_view.doubleClicked.connect(self._on_launch_game)
         self.search_bar.textChanged.connect(self._on_search_changed)
+        self.search_bar.returnPressed.connect(lambda: self._on_search_changed(self.search_bar.text()))
         self.folder_dock.category_selected.connect(self._on_category_filtered)
 
         # Señales del Menú Contextual de Clic Derecho
@@ -243,7 +244,11 @@ class MainWindow(QMainWindow):
 
     def _load_games(self):
         self.all_games = self.db_manager.get_all_games()
-        self._apply_filter(self.current_filter_type, self.current_filter_value)
+        search_text = self.search_bar.text()
+        if search_text.strip():
+            self._on_search_changed(search_text)
+        else:
+            self._apply_filter(self.current_filter_type, self.current_filter_value)
 
     def _on_game_selected(self, selected: QItemSelection, deselected: QItemSelection):
         indexes = selected.indexes()

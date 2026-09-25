@@ -1,6 +1,7 @@
 # Entorno y MAME de prueba local
 MAME 0.289
 MAME 0.289+GUI
+MAME 0.289kf
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -110,6 +110,7 @@ class GameTableModel(QAbstractItemModel):
 
     def set_games(self, games: List[Dict[str, Any]]):
         self.beginResetModel()
+        self._icon_cache.clear()  # el estado (has_rom/driver_status) pudo cambiar tras un audit/F5
         self._build_tree(games)
         self.endResetModel()
 
@@ -336,6 +337,15 @@ class GameTableView(QTreeView):
         # Menú contextual de Clic Derecho
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            index = self.currentIndex()
+            game = self.model().get_game(index) if self.model() and index.isValid() else None
+            if game:
+                self.play_requested.emit(game.get("rom_name", ""))
+                return
+        super().keyPressEvent(event)
 
     def setModel(self, model):
         super().setModel(model)

@@ -91,6 +91,14 @@ class RomsetImportThread(QThread):
                     is_clone = excluded.is_clone,
                     parent_rom = excluded.parent_rom
             """, rows)
+
+            # Purgar entradas "fantasma": máquinas que el core ya no reporta
+            # (renombradas/eliminadas del driver en versiones más nuevas de MAME).
+            conn.execute("CREATE TEMP TABLE _current_machines (rom_name TEXT PRIMARY KEY)")
+            conn.executemany("INSERT INTO _current_machines (rom_name) VALUES (?)", [(r[0],) for r in rows])
+            conn.execute("DELETE FROM custom_folders WHERE rom_name NOT IN (SELECT rom_name FROM _current_machines)")
+            conn.execute("DELETE FROM games WHERE rom_name NOT IN (SELECT rom_name FROM _current_machines)")
+            conn.execute("DROP TABLE _current_machines")
             conn.commit()
 
         self.import_finished.emit(len(rows))
