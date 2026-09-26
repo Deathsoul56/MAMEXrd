@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2 (2026-09-26)
+
+- Detección automática de `mame.exe` mejorada, con opción de reconfigurar la ruta manualmente.
+- Limpieza automática de entradas obsoletas en la base de datos al re-escanear (juegos/carpetas que ya no reporta el core de MAME).
+- Lanzar el juego seleccionado con Enter desde la tabla.
+- Buscar al presionar Enter en la barra de búsqueda.
+- El panel Title/Media recuerda la última pestaña activa entre sesiones.
+
 ## v0.1 (2026-08-31)
 
 Primer release de MAMEXrd.

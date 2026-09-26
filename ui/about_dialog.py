@@ -5,7 +5,7 @@ from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtCore import Qt, QPoint
 from utils.app_icon import get_app_icon
 
-MAMEXRD_VERSION = "v0.1"
+MAMEXRD_VERSION = "v0.2"
 
 
 class AboutDialog(QDialog):
